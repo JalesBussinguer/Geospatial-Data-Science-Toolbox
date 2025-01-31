@@ -1,0 +1,9 @@
+{
+    
+    "class1_path": "",
+    "class2_path": "",
+    "output_path": "",
+    "index_list": ["DpRVI", "PRVI","DPSVI", "DPSVIm", "RVI"],
+    "n_bins": 500
+
+}
