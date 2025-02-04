@@ -5,66 +5,77 @@ import os
 
 from rasterstats import zonal_stats
 
-form_florestal = gpd.read_file('D:/thesis_data/ROI/classes/form_florestal_30m_32723_buffer.GEOJSON')
-form_savanica = gpd.read_file('D:/thesis_data/ROI/classes/form_savanica_30m_32723_buffer.GEOJSON')
-form_campestre = gpd.read_file('D:/thesis_data/ROI/classes/form_campestre_30m_32723_buffer.GEOJSON')
+import argparse
 
-images_path = 'D:/thesis_data/VEG_INDICES/raster/'
-image_list = os.listdir(images_path)
+def get_args():
 
-indices_list = ['DpRVI', 'PRVI', 'DPSVI', 'DPSVIm', 'RVI']
+    parser = argparse.ArgumentParser()
 
-pol_list = ['entropy', 'anisotopy', 'alpha_angle']
+    parser.add_argument('-j', '--json',
+    help='The input json file containing the preprocessing settings',
+    type=str)
 
-sigma_list = ['VH', 'VV']
+    args = parser.parse_args()
 
-c2_list = ['c11', 'c12_real', 'c12_imag', 'C22']
+    return args
 
-for id, indice in enumerate(indices_list, start=1):
+def sample_from_shape(shape, images_path, target_band_list, target_stats, outpath):
 
-    df_florestal_stats = pd.DataFrame()
-    df_savanica_stats = pd.DataFrame()
-    df_campestre_stats = pd.DataFrame()
+    image_list = os.listdir(images_path)
 
-    for index, image in enumerate(image_list):
+    for id, band in enumerate(target_band_list, start=1):
 
-        date = image_list[index].split('T')[0]
+        df_stats = pd.DataFrame()
 
-        florestal = zonal_stats(form_florestal, images_path + image, band=id, nodata=np.nan, stats=['mean', 'median', 'percentile_25', 'percentile_75', 'std'])
+        for index, image in enumerate(image_list):
 
-        florestal_stats = pd.DataFrame(florestal)
-        florestal_stats['date'] = pd.to_datetime(int(date), format='%Y%m%d')
-        df_florestal_stats = pd.concat([florestal_stats, df_florestal_stats])
+            date = image_list[index].split('T')[0] # Must be changed to match the raster's name pattern
 
-        print(f'{indice} - {date} florestal data collected')
+            stats = zonal_stats(shape, images_path + image, band=id, nodata=np.nan, stats=target_stats)
 
-        savanica = zonal_stats(form_savanica, images_path + image, band=id, nodata=np.nan, stats=['mean', 'median', 'percentile_25', 'percentile_75', 'std'])
+            stats_df = pd.DataFrame(stats)
+            stats_df['date'] = pd.to_datetime(int(date), format='%Y%m%d')
+            df_stats = pd.concat([df_stats, stats_df])
 
-        savanica_stats = pd.DataFrame(savanica)
-        savanica_stats['date'] = pd.to_datetime(int(date), format='%Y%m%d')
-        df_savanica_stats = pd.concat([savanica_stats, df_savanica_stats])
+            print(f'{band} - {date} data collected')
 
-        print(f'{indice} - {date} savanica data collected!')
+        df_stats = df_stats.reindex(index=df_stats.index[::-1])
+        df_stats.reset_index(inplace=True, drop=True)
+        df_stats.to_csv(outpath + band + '.csv', sep=',', index=False)
 
-        campestre = zonal_stats(form_campestre, images_path + image, band=id, nodata=np.nan, stats=['mean', 'median', 'percentile_25', 'percentile_75', 'std'])
+        print(f'{band} csv file saved!')
 
-        campestre_stats = pd.DataFrame(campestre)
-        campestre_stats['date'] = pd.to_datetime(int(date), format='%Y%m%d')
-        df_campestre_stats = pd.concat([campestre_stats, df_campestre_stats])
+        return 0
 
-        print(f'{indice} - {date} campestre data collected!')
+def main(params):
+
+    # Import the target shapes for sampling individually
+    shape_to_sample = gpd.read_file(params['shape_to_sample'])
+
+    images_path = params['images_path']
+
+    target_band_list = params['target_band_list'] # Must be the exact same order as the bands in the raster
+
+    target_stats = params['target_stats']
+
+    outpath = params['outpath']
+
+    sample_from_shape(shape_to_sample, images_path, target_band_list, target_stats, outpath)
+
+    print('Sampling completed')
+
+    return 0
+
+if __name__ == "__main__":
+
+    import json
+
+    args = get_args()
+
+    file = open('settings.json')
+
+    params = json.load(file)
+
+    main(params)
     
-    df_florestal_stats = df_florestal_stats.reindex(index=df_florestal_stats.index[::-1])
-    df_florestal_stats.reset_index(inplace=True, drop=True)
-    df_florestal_stats.to_csv('D:/thesis_data/SAR/stats/' + 'florestal_' + indice + '.csv', sep=',', index=False)
-    print(f'{indice} florestal csv file saved!')
-
-    df_savanica_stats = df_savanica_stats.reindex(index=df_savanica_stats.index[::-1])
-    df_savanica_stats.reset_index(inplace=True, drop=True)
-    df_savanica_stats.to_csv('D:/thesis_data/SAR/stats/' + 'savanica_' + indice + '.csv', sep=',', index=False)
-    print(f'{indice} savanica csv file saved!')
-
-    df_campestre_stats = df_campestre_stats.reindex(index=df_campestre_stats.index[::-1])
-    df_campestre_stats.reset_index(inplace=True, drop=True)
-    df_campestre_stats.to_csv('D:/thesis_data/SAR/stats/' + 'campestre_' + indice + '.csv', sep=',', index=False)
-    print(f'{indice} campestre csv file saved!')
+    
